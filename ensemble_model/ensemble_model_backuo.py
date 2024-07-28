@@ -3,7 +3,6 @@ import torch.nn as nn
 from transformers import AdamW, BertModel, BertTokenizer, RobertaModel, RobertaTokenizer
 from sklearn.metrics import precision_score, recall_score, f1_score, precision_recall_curve
 import matplotlib.pyplot as plt
-import torch.nn.functional as F
 # Define base model class
 class BaseModel(nn.Module):
     def __init__(self, transformer_model, tokenizer):
@@ -20,48 +19,18 @@ class BaseModel(nn.Module):
     def tokenize(self, text, max_length=128):
         return self.tokenizer(text, return_tensors='pt', truncation=True, padding='max_length', max_length=max_length)
 
-
-
-class GateNetwork(nn.Module):
-    def __init__(self, input_dim):
-        super(GateNetwork, self).__init__()
-        self.fc1 = nn.Linear(input_dim, input_dim // 2)
-        self.fc2 = nn.Linear(input_dim // 2, 2)
-        self.softmax = nn.Softmax(dim=1)
-
-    def forward(self, features):
-        x = F.relu(self.fc1(features))
-        weights = self.fc2(x)
-        weights = self.softmax(weights)
-        return weights
-
-
-
-class StackingMoEModel(nn.Module):
+# Define stacking model class
+class StackingModel(nn.Module):
     def __init__(self, base_model1, base_model2):
-        super(StackingMoEModel, self).__init__()
+        super(StackingModel, self).__init__()
         self.base_model1 = base_model1
         self.base_model2 = base_model2
-        combined_input_dim = base_model1.transformer_model.config.hidden_size + base_model2.transformer_model.config.hidden_size
-        self.gate_network = GateNetwork(combined_input_dim)
-        self.classifier = nn.Linear(base_model1.transformer_model.config.hidden_size, 2)
+        self.classifier = nn.Linear(base_model1.transformer_model.config.hidden_size + base_model2.transformer_model.config.hidden_size, 2)
 
     def forward(self, inputs_bert, inputs_codebert):
         outputs_bert = self.base_model1(inputs_bert)
         outputs_codebert = self.base_model2(inputs_codebert)
-        
-        combined_features = torch.cat((outputs_bert, outputs_codebert), dim=1)
-        
-        # Calculate weights using the gate network
-        weights = self.gate_network(combined_features)
-        
-        # Apply weights to the outputs
-        weighted_outputs_bert = outputs_bert * weights[:, 0].unsqueeze(1)
-        weighted_outputs_codebert = outputs_codebert * weights[:, 1].unsqueeze(1)
-        
-        # Combine the weighted outputs
-        combined = weighted_outputs_bert + weighted_outputs_codebert
-        
+        combined = torch.cat((outputs_bert, outputs_codebert), dim=1)
         logits = self.classifier(combined)
         return logits
 
@@ -84,7 +53,7 @@ class StackingMoEModel(nn.Module):
         plt.legend()
         plt.grid(True)
         plt.show()
-
+        
     def trainer(self, train_loader, val_loader, num_epochs=3, learning_rate=2e-5, patience=3):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.to(device)
@@ -98,7 +67,6 @@ class StackingMoEModel(nn.Module):
         for epoch in range(num_epochs):
             self.train()
             total_loss = 0
-            
             for batch in train_loader:
                 inputs_bert, inputs_codebert, labels = batch
                 inputs_bert = {k: v.to(device) for k, v in inputs_bert.items()}
@@ -142,7 +110,6 @@ class StackingMoEModel(nn.Module):
         total = 0
         all_labels = []
         all_predictions = []
-        all_probabilities = []
         with torch.no_grad():
             for batch in val_loader:
                 inputs_bert, inputs_codebert, labels = batch
@@ -155,7 +122,6 @@ class StackingMoEModel(nn.Module):
                 correct += (predicted == labels).sum().item()
                 all_labels.extend(labels.cpu().numpy())
                 all_predictions.extend(predicted.cpu().numpy())
-                all_probabilities.extend(torch.softmax(logits, dim=1).cpu().numpy()[:, 1]) # probability of the positive class
         accuracy = correct / total
         precision = precision_score(all_labels, all_predictions, average='macro', zero_division=0)
         recall = recall_score(all_labels, all_predictions, average='macro', zero_division=0)
@@ -166,4 +132,3 @@ class StackingMoEModel(nn.Module):
         print(f'Recall: {recall}')
         print(f'F1-Score: {f1}')
         return accuracy, all_labels, all_probabilities
-
