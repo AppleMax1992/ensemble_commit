@@ -12,7 +12,8 @@ class SentencePairDataset(Dataset):
         return len(self.data)
 
     def get_embedding(self, idx):
-        sentence1, sentence2, label = self.data[idx]
+        # print(self.data.loc[idx]['message'], self.data.loc[idx]['command'],self.data.loc[idx]['label'])
+        sentence1, sentence2, label = str(self.data.loc[idx]['message']), str(self.data.loc[idx]['command']), int(self.data.loc[idx]['label'])
         inputs_bert = self.bert_tokenizer(sentence1, return_tensors='pt', truncation=True, padding='max_length', max_length=128)
         inputs_codebert = self.codebert_tokenizer(sentence2, return_tensors='pt', truncation=True, padding='max_length', max_length=128)
         return {k: v.squeeze(0) for k, v in inputs_bert.items()}, {k: v.squeeze(0) for k, v in inputs_codebert.items()}, torch.tensor(label, dtype=torch.long)
