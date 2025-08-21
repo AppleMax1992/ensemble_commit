@@ -1,2 +1,5 @@
-dataset/dataset.csv filter=lfs diff=lfs merge=lfs -text
-dataset/patch_db.json filter=lfs diff=lfs merge=lfs -text
+dataset/900Repo/negative+CC-900repos.csv filter=lfs diff=lfs merge=lfs -text
+dataset/900Repo/positive+CC-900repos.csv filter=lfs diff=lfs merge=lfs -text
+dataset/PatchDB/patch_db.json filter=lfs diff=lfs merge=lfs -text
+dataset/SPIDB/ffmpeg.csv filter=lfs diff=lfs merge=lfs -text
+dataset/SPIDB/qemu.csv filter=lfs diff=lfs merge=lfs -text 
